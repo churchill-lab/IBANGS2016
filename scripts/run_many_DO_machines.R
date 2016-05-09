@@ -30,9 +30,6 @@ foreach(i = 1:N, .packages="analogsea") %dopar% {
   # pull docker images
   d %>% docklet_pull("rocker/hadleyverse")
   d %>% docklet_pull("churchill/doqtl")
-  d %>% docklet_pull("churchill/asesuite")
-  d %>% docklet_pull("ipython/scipystack")
-  d %>% docklet_pull("churchill/webapp")
   d %>% docklet_images()
 }
 
@@ -42,7 +39,7 @@ foreach(i = 1:N, .packages="analogsea") %dopar% {
   # select droplet
   d = droplet_list[[i]]
   
-  lines <- "wget https://raw.githubusercontent.com/churchill-lab/sysgen2015/master/scripts/download_data_from_ftp.sh
+  lines <- "wget https://raw.githubusercontent.com/churchill-lab/IBANGS2016/master/scripts/download_data_from_ftp.sh
             /bin/bash download_data_from_ftp.sh
             rm download_data_from_ftp.sh"
   cmd <- paste0("ssh ", analogsea:::ssh_options(), " ", "root", "@", analogsea:::droplet_ip(d)," ", shQuote(lines))
@@ -57,17 +54,9 @@ for(i in 1:N) {
   # select droplet
   d = droplet_list[[i]]
   
-  d %>% docklet_run("-d", " -v /data:/data", " -p 8787:8787", " -e USER=rstudio", " -e PASSWORD=sysgen ", "churchill/doqtl")
-  d %>% docklet_run("-dt", " -v /data:/data", " -p 43210:43210 -p 43211:43211 ", "churchill/asesuite") %>% docklet_ps()
+  d %>% docklet_run("-d", " -v /ibangs/data:/data", " -v /ibangs/tutorial:/tutorial"," -p 8787:8787", " -e USER=rstudio", " -e PASSWORD=ibangs ", "churchill/doqtl")
   
 }
-
-# start webapp containers (memory intensive, better do not use with kallisto)
-#for(i in 1:N) {
-#  d = droplet_list[[i]]
-#  d %>% docklet_run("-dt", " -v /data:/data", " -p 8888:8888 -p 8889:8889 ", "churchill/webapp /usr/bin/start-app.sh") %>% docklet_ps()
-#}
-
 
 ### Create participant table with links
 participants$DO_machine <- sapply(droplet_list, function(x) x$name)
