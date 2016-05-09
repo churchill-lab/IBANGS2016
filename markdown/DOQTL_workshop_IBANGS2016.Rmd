@@ -11,8 +11,9 @@ output: html_document
 ## Learning Objectives 
 
 * Explore data from Diversity Outbred (DO) mice.
-* Map a gene expression trait.
-* Map all gene expression traits in a data set.
+* Map a behavioral trait.
+* Search for non-synonymous SNPs in candidate genes.
+* Search for candidate genes in brain gene expression data. 
 
 
  
@@ -20,474 +21,367 @@ output: html_document
 
 
 
-## Mapping QTL in the Diversity Outbred (DO) 
+## Mapping QTL in Diversity Outbred Mice 
 
-We will be mapping phenotypes from unpublished data using [Diversity Outbred (DO)  Mice](http://jaxmice.jax.org/strain/009376.html). 192 DO mice (98 females & 94 males) were
-placed on either a chow diet or a high fat diet. They were aged to approximately 22 weeks
-and a variety of physiological phenotypes were measured. At sacrifice, we collected liver tissue 
-and measured gene expression using RNASeq and protein levels using mass spectrometry.
+We will be mapping behavioral phenotypes from Dr. Elissa Chesler's group in [Diversity Outbred (DO)  Mice](http://jaxmice.jax.org/strain/009376.html). The Open Field Test was conducted on 272 DO mice (140 females & 132 males). In the Open Field Test, mice are placed in an open arena for 20 minutes and are scored for the amount of time that they spend in the center, corners and periphery of the arena. These values are tallied in 4 minute bins. Summary measures such as the total distance traveled and the slope of behavior across the time bins are then computed. At necropsy, brain tissue was harvested and transcript levels in the hippocampus were measured via RNASeq. All of the mice were genotyped at 7,654 markers on the first generation [Mouse Universal Genotyping Array (MUGA)](http://www.neogen.com/Genomics/pdf/Slicks/MegaMUGAFlyer.pdf).
 
-Sex | chow | HFD
-----|------|----
- F  |  50  |  48
- M  |  48  |  46
-
-In this tutorial, we will map gene expression traits. We will perform linkage mapping using the DO haplotype reconstructions and then perform association mapping using imputed SNPs from the DO founders. You will then map an expression trait that you choose.
+In this tutorial, we will map behavioral traits. We will perform linkage mapping using the DO haplotype reconstructions and then perform association mapping using imputed SNPs from the DO founders. We will search for candidate genes that change protien structure or gene expression.  You will then map a behavioral trait that you choose.
 
 ## Exercises
 ### Libraries and Data Import
 
-First, we will load the R libraries that we need to perform the analysis. These include [DOQTL](http://bioconductor.org/packages/release/bioc/html/DOQTL.html), a package designed to map traits in DO mice, and [rhdf5](https://www.bioconductor.org/packages/release/bioc/html/rhdf5.html), a package that stores compressed data in [HDF5](https://www.hdfgroup.org/HDF5/) format.
+First, we will load the R libraries that we need to perform the analysis. These include [DOQTL](http://bioconductor.org/packages/release/bioc/html/DOQTL.html), a package designed to map traits in DO mice, [VariantAnnotation](https://bioconductor.org/packages/release/bioc/html/VariantAnnotation.html), a package that reads data from the SNP files in Variant Call Format (VCF)  and [AnnotationHub](https://bioconductor.org/packages/release/bioc/html/AnnotationHub.html), a package that accesses a wide variaty of organism annotation data.
 
-```{r, results='hide', message=FALSE}
+```{r, results='hide',message=FALSE,warning=FALSE}
+options(na.action = na.pass)
 library(DOQTL)
-library(rhdf5)
+library(VariantAnnotation)
+library(AnnotationHub)
 ```
 
-We will be working with data that is stored locally. For the first exercise, we will be mapping a gene expression trait. In order to map, we need two pieces of information on each mouse:
+We will be working with data that is stored locally on your cloud machine. For the first exercise, we will map the slope of the time spent in the center of the arena. This is the slope of the percent of time spent in the center in each of the 4 minute time bins. In order to map the trait, we need two pieces of information on each mouse:
 
-1. Phenotype measurements on a set of DO mice
-2. Genotypes across the genome on the same set of DO mice
+1. Phenotype measurements on a set of DO mice,
+2. Genotypes across the genome for the same set of DO mice.
 
-All of the data for this tutorial is stored in a compressed R binary file that ends with `Rdata`. You load an Rdata file in using the `load()` command.
+All of the data for this tutorial is stored in a compressed R binary files that end with `rds`. You load an RDS file in using the `readRDS()` command. We will first load in the phenotypes.
 
-Next, we need to load in the haplotype probabilities. These are in large Rdata files with other variables that will be used later.
-
-```{r warning=FALSE}
-load("/data/Rdata/DO192_DataforSysGenCourse.Rdata")
+```{r load_pheno,warning=FALSE}
+pheno = readRDS("../data/ibangs_phenotypes.rds")
 ```
 
-These commands loaded a number of R objects into the environment. Look at the **Environment** tab in the upper left panel of your RStudio window to see them.
+This command loaded an R object called 'pheno' into the environment. Look at the **Environment** tab in the upper left panel of your RStudio window to see it.
 
-We are going to remove a few of the objects that we will not use today.
+Let's look at the phenotype data.  It is a large matrix with `r nrow(pheno)` rows and `r ncol(pheno)` columns. You are required to have the sample IDs in the rownames of your phenotype type data. Let's look at the file.
 
-```{r warning=FALSE}
-rm(annotations.protein.192, covariates.protein.192, expr.protein.192)
+Type: `View(pheno)` into your command window.  This will bring up the file in a new tab.
+
+The rows contain sample IDs (EJC1, EJC10, EJC100, etc.) and the columns contain information about each mouse and phenotype measurements from the Open Field Test.
+
+Next, let's look at the distribution of one of the `Pct.Time.Corner.Slope`.
+
+```{r pheno_hist,warning=FALSE}
+hist(pheno$Pct.Time.Corner.Slope, breaks = 20, main = "Pct.Time.Corner.Slope")
 ```
 
-First, let's look at the expression data in `expr.rna.192.`  It is a large matrix with `r nrow(expr.rna.192)` rows and `r ncol(expr.rna.192)` columns. You are required to have the sample IDs in the rownames of your phenotype type data. Let's look at a small part of the file.
+The histogram appeared in the *Plots* tab in the lower right panel. The trait is normally distributed with one high outlier. This may affect the mapping results and a more in depth analysis would compare the results with and without the outlier mouse.
 
-```{r warnings=FALSE}
-expr.rna.192[1:5,1:6]
+Next, let's look at the haplotype probabilities. 
+
+```{r load_haplo}
+probs = readRDS("../data/ibangs_haploprobs.rds")
 ```
 
-The rows contain sample IDs (F326, F327, F329, etc.) and the columns contain Ensembl Gene IDs. In order to map one gene, we would use one column of data.
+`probs` is a three dimensional numeric array. The `r nrow(probs)` samples are in rows, the `r ncol(probs)` DO founders are in columns and the `r dim(probs)[3]` markers are in slices. Again, as with the expression data, you are required to have sample IDs in rownames.
 
-Next, let's look at the distribution of one of the genes.
+Let's look at the haplotype probabilities for one marker.
 
-```{r warning=FALSE}
-hist(expr.rna.192[,1], breaks = 20, main = colnames(expr.rna.192)[1])
-```
-
-Amazing! It lookes normally distributed. In fact, we have transformed each trait using an inverse normal (or rankZ) transformation. DOQTL contains a function called `rankZ()` that has been applied to each gene. If we leave the expression data untransformed, we may have outliers that would adversely affect the QTL mapping. The rankZ transformation provides a compromise between no transformation and simply ranking the data. Value at the extremes of the distribution will still have more leverage than values near the mean, but not enough to disrupt the mapping. Also, when all traits have the same distribution we can run permutations on only one gene to assess significance thresholds. 
-
-Next, let's look at the haplotype probabilities in `probs.192.` `probs.192` is a three dimensional numeric array. The `r nrow(probs.192)` samples are in rows, the `r ncol(probs.192)` DO founders are in columns and the `r dim(probs.192)[3]` markers are in slices. Again, as with the expression data, you are required to have sample IDs in rownames.
-
-
-Let's look at one slice of the haplotype probabilities.
-
-```{r warning=FALSE}
-image(1:ncol(probs.192), 1:20, t(probs.192[20:1,,1]), axes = F, ann = F,
+```{r probs_image,warning=FALSE}
+image(1:ncol(probs), 1:20, t(probs[20:1,,1]), axes = F, ann = F,
       breaks = c(-0.25, 0.25, 0.75, 1.25), col = c("white", "grey50", "black"))
 box()
 abline(v = 0:9+0.5, col = "grey80")
 abline(h = 0:20+0.5, col = "grey80")
 mtext(side = 3, line = 0.5, at = 1:8, text = LETTERS[1:8], cex = 1.5)
-mtext(side = 2, line = 0.5, at = 20:1, text = rownames(probs.192)[1:20], las = 1)
+mtext(side = 2, line = 0.5, at = 20:1, text = rownames(probs)[1:20], las = 1)
 ```
 
-We also have a kinship matrix that was produced from the haplotype probabilities. A kinship matrix contains the degree of relatedness between each pair of mice. In this case, we have created a kinship matrix for each chromosome. We calculate the kinship matrix on each chromosome using the markers from all of the other chromosomes, but excluding the markers on the current chromosome. For example, on Chr 1, we would calculate the kinship between mice using markers on Chr 2 through Chr X.  This has been shown to increase power for some QTL. The acronym LOCO stands for *Leave One Chromosome Out*. Below is example code (that we do not run) showing how to calculate the kinship matrix.
+The cells are colored black, grey and white for probabilities near 1, 0.5 and 0, respectively.  Samples are in rows and the eight DO founders, coded as `A` to `H`, are in the columns. Look at sample EJC1. It has black cell in the `A` column, indicating that it carries two copies of the A/J allele.  Sample EJC10 has grey cell in the `B` and `D` columns, indicating that it carries a C57BL/6J and an NOD/ShiLtJ allele at this marker.
 
-```{r eval=FALSE}
-K = kinship.probs(probs = probs.192, snps = snps.64K, bychr = TRUE)
+Next we will load in the marker locations. These are stored on the public [FTP server at The Jackson Laboratory](ftp://ftp.jax.org/MUGA).
+
+```{r load_snps}
+load(url("ftp://ftp.jax.org/MUGA/muga_snps.Rdata"))
+snps = muga_snps[muga_snps[,1] %in% dimnames(probs)[[3]],]
+rm(muga_snps)
 ```
 
-### Mapping a Gene Expression Trait
+This loaded in an object called `snps` into the environment. `snps` is a data.frame with `r nrow(snps)` markers, the same size as the number of marekrs in `probs`.
 
-We will first create a matrix of covariates to use in the mapping model. DOQTL requires a covariate called `sex` because it is used to map on the X chromosome. We will also use diet as a covariate. There are three important points to remember with covariates.
+Next, we will create a kinship matrix using the haplotype probabilities in `probs`. A kinship matrix contains the degree of relatedness between each pair of mice. In this case, we will create a different kinship matrix for each chromosome. We calculate the kinship matrix on each chromosome using the markers from all of the other chromosomes, excluding the markers on the current chromosome. For example, on Chr 1, we would calculate the kinship between mice using markers on Chr 2 through Chr X.  This has been shown to increase power for some QTL. The acronym LOCO stands for *Leave One Chromosome Out*. 
+
+```{r kinship,message=FALSE,warning=FALSE}
+K = kinship.probs(probs = probs, snps = snps, bychr = TRUE)
+```
+
+### Mapping a Behavioral Trait
+
+We will first create a matrix of covariates to use in the mapping model. DOQTL requires a covariate called `sex` because it is used to map on the X chromosome. We will also use DO outbreeding generation as a covariate. There are three important points to remember with covariates.
 
 1. Covariates must be numeric,
 2. Covariates must have rownames that contain the same sample IDs as the phenotypes,
 3. Covariates must have one column called `sex`.
 
-```{r warning=FALSE}
-covar = model.matrix(~Sex + Diet, data = covariates.rna.192)[,-1]
+```{r covar,warning=FALSE}
+covar = model.matrix(~Sex + Generation, data = pheno)[,-1]
 colnames(covar)[1] = "sex"
-rownames(covar) = rownames(expr.rna.192)
 ```
 
-Next, we need to decide which gene to map. We will map *Lrtm1* and we need to find the column number in `expr.rna.192` that contains this gene. We will look it up in the `annotations.rna.192` data.frame.
+At this point, we have five objects in memory that are required for a mapping experiment:
 
-```{r warning=FALSE}
-row = which(annotations.rna.192$Gene == "Lrtm1")
-ensid = annotations.rna.192$EnsemblID[row]
-annotations.rna.192[row,]
-```
-
-The last line printed out the annotation data for *Lrtm1*. What chromosome is *Lrtm1* on?  And what Mb position?
-
-We can see that the Ensembl ID for *Lrtm1* is `r annotations.rna.192$EnsemblID[row]`. Next we need to find that column in `expr.rna.192`.
-
-```{r warning=FALSE}
-pheno.col = which(colnames(expr.rna.192) == ensid)
-colnames(expr.rna.192)[pheno.col]
-```
+1. pheno: the phenotypes that we have measured,
+2. probs: the haplotype probabilities from the same mice,
+3. snps: the marker locations for the haplotype probabilities,
+4. K: a list of kinship matrices that estiamtes the relationships between mice,
+5. covar: a set of covariates that are needed for mapping.
 
 The main function for linkage mapping, in which we regress the phenotype on the haplotype probabilities, is called `scanone()`. `scanone()` uses the sample IDs in the phenotype, covariates, probabilities and kinship matrices to line up the samples. This means that sample IDs are required in the rownames of all of these objects.
 
-```{r warning=FALSE}
-qtl = scanone(pheno = expr.rna.192, pheno.col = pheno.col, probs = probs.192, K = K.LOCO.192,
-             addcovar = covar, snps = snps.64K)
+```{r linkage,warning=FALSE}
+qtl = scanone(pheno = pheno, pheno.col = "Pct.Time.Center.Slope", 
+              probs = probs, K = K, addcovar = covar, snps = snps)
 ```
 
-This produces a DOQTL object that contains the LOD scores and the founder allele effects. Next, we plot the genome scan.
+Note that `scanone()` tells you the number of samples and markers that it is using.  If you provided 272 samples and it's only using 100 samples, then it is likely that your sample IDs don't agree between `pheno`, `probs` and `covar` or you have a lot of missing data.  `scanone()` produces a DOQTL object that contains the LOD scores and the founder allele effects. Next, we will plot the genome scan.
 
-```{r warning=FALSE}
-plot(qtl, main = paste(ensid, "Lrtm1"))
+```{r linkage_plot,warning=FALSE}
+plot(qtl, main = "Pct.Time.Center.Slope")
 ```
 
 There are some peaks that look large, but we need some way to decide which ones are significant. To do this, we will load in previously computed permutations. We ran 1000 permutations and retained the maximum LOD score from each one.
 
-```{r warning=FALSE}
-load("/data/eQTL/eQTL_perms.Rdata")
-thr = quantile(perms, 0.95)
+```{r linkage_perms,warning=FALSE}
+link_perms = readRDS("../data/linkage_perms.rds")
+thr = get.sig.thr(link_perms, alpha = c(0.05, 0.63))
+```
+
+Let's plot the distrubtion of maximum LOD scores in the permutations.
+
+```{r perms_hist,warning=FALSE}
+hist(link_perms[,1], breaks = 20)
+abline(v = thr[1,1], col = "red", lwd = 2)
 ```
 
 This is the distribution of the maximum LOD scores across the permutations. The red line is the 95th percentile of the distribution. LOD scores that are above this threshold will occur by chance 5% of the time. We call this an alpha = 0.05 genome-wide threshold.
 
-```{r warning=FALSE}
-hist(perms, breaks = 20)
-abline(v = thr, col = "red", lwd = 2)
+Let's add the 0.05 and 0.63 thresholds to the QTL plot.
+
+```{r linkage_plot2,warning=FALSE}
+plot(qtl, main = "Pct.Time.Center.Slope", sig.thr = thr,
+     sig.col = c("red", "goldenrod"))
 ```
 
-Let's add the 0.05 threshold to the QTL plot.
+We can see that two peaks cross the lower threshold, one on Chr 2 and one on Chr 4. Let's look more closely at the peak on Chr 4. The mapping model produces an estimate of the effect of each of the eight founder alleles. We can plot these on one chromosome using `coefplot()`.
 
-```{r warning=FALSE}
-plot(qtl, main = paste(ensid, "Lrtm1"), sig.thr = thr)
+
+```{r coefplot,warning=FALSE}
+coefplot(qtl, chr = 4, main = "Pct.Time.Center.Slope")
 ```
 
-We can see that two peaks cross the threshold, one on Chr 7 and one on Chr 14. Let's look more closely at the peak on Chr 14. The mapping model produces an estimate of the effect of each of the eight founder alleles. We can plot these on one chromosome using `coefplot()`.
+Each of the eight colored lines in the top plot represents the effect of one of the eight founders. The LOD plot is shown on the bottom. At the peak near 150Mb, the allele effects split into two groups. DO mice that carry the PWK/PhJ allele have lower slope than other DO mice. Look to the right near 74 Mb. The founder effects separate from each other.  But is this split significant? What would you use to decide if there is another peak at 74 Mb?
 
 
-```{r warning=FALSE}
-coefplot(qtl, chr = 14, main = paste(ensid, "Lrtm1"))
+Next, we can use the haplotype reconstructions to impute the DO founder SNPs onto DO genomes. We do this by copying SNPs from the [Sanger Mouse Genomes Project](http://www.sanger.ac.uk/resources/mouse/genomes/) and pasting them into the haplotype blocks for each DO mouse.
+
+![DO impute founder SNPs](DO.impute.founders.sm.png)
+
+Although we genotyped the DO mice at 7,654 markers, we now have 40 million SNPs imputed onto each DO mouse  We can use these to perform genome-wide association mapping at each SNP.  To do this, we will use `scanone.assoc()`, which takes a set of arguments similar to `scanone()`. The biggest difference is that `scanone.assoc()` needs a special file containing information about the 40 million founder SNPs. This file is called 'DO_Sanger_SDPs.txt.bgz' and it can be downloaded from the [JAX FTP site](ftp://ftp.jax.org/MUGA/).  When you run DOQTL at home, you will need to download both 'DO_Sanger_SDPs.txt.bgz' and 'DO_Sanger_SDPs.txt.bgz.tbi' and place them in the same directory. Then you will point `scanone.assoc()` to their location using the `sdp.file` argument.  Here, we have loaded them into the 'data' directory on your cloud machine.
+
+```{r gwas,warning=FALSE}
+gwas = scanone.assoc(pheno = pheno, pheno.col = "Pct.Time.Center.Slope",
+       probs = probs, K = K, addcovar = covar, markers = snps, ncl = 1,
+       sdp.file = "../data/DO_Sanger_SDPs.txt.bgz")
 ```
 
-Each of the eight colored lines in the top plot represents the effect of one of the eight founders. The LOD plot is shown on the bottom. At the peak near 30Mb, the allele effects split into two groups. DO mice that carry the PWK/PhJ or WSB/EiJ alleles have lower *Lrtm1* expression than other DO mice. Look to the right near 60 Mb. The founder effects separate from each other.  But is this split significant? What would you use to decide if there is another peak at 60 Mb?
+Next, we load in the pre-computed permutations for the GWAS.
 
-*Lrtm1* is located on Chr 14 at 29 Mb. Notice that the peak on Chr 14 is very close to this location. We call this a *local eQTL* because the QTL peak is co-located with the gene itself.
-
-Next, let's look at the founder effects for the peak on Chr 7.
-
-```{r warning=FALSE}
-coefplot(qtl, chr = 7, main = paste(ensid, "Lrtm1"))
+```{r load_gwas_perms,warnings=FALSE}
+assoc_perms = readRDS("../data/assoc_perms.rds")
+thr = get.sig.thr(-log10(assoc_perms))
 ```
 
-The peaks here is wider and the pattern of allele effects is less clear.  When a peak is located far from the gene, we call this a *distant eQTL*.
+We will plot the GWAS results with a red line at the alpha = 0.05 significance level.
 
-Next, we can use the haplotype reconstructions to impute the DO founder SNPs onto DO genomes. We do this by taking SNPs from the [Sanger Mouse Genomes Project](http://www.sanger.ac.uk/resources/mouse/genomes/) and pasting them into the haplotype blocks for each DO mouse.
-
-
-Although we genotyped the DO mice at ~77,000 markers, we now have 40 million SNPs in the DO mice. We can use these to perform association mapping at each SNP. While it is possible to perform genome-wide association mapping, this requires more time than we have in this tutorial. Here will will perform association mapping in the region of the local eQTL for *Lrtm1* on Chr 14. To do this, we will use  `assoc.map()`, which takes a set of arguments similar to `scanone()`.
-
-```{r warning=FALSE}
-assoc = assoc.map(pheno = expr.rna.192, pheno.col = pheno.col, probs = probs.192, K = K.LOCO.192[[14]],
-                  addcovar = covar, snps = snps.64K, chr = 14, start = 28, end = 32)
-tmp = assoc.plot(assoc, thr = 10, show.sdps = TRUE, highlight = "Lrtm1")
+```{r gwas_plot,warnings=FALSE}
+plot(gwas, bin.size = 1000, sig.thr = thr)
 ```
 
-There are three panels in the association mapping plot. The top panel shows the minor allele frequency for selected SNPs, the middle panel shows the LOD scores for all SNPs, and the bottom panel shows the genes in the interval. We colored SNPs with LOD scores over 10 in red and then plotted the minor allele for each of these SNPs. A LOD of 10 is arbitrary in this case, but it allows us to highlight the most significant SNPs. Which two strains contribute the minor allele for the high LOD SNPs? How do these strains relate to the ones in the founder effects plot above?
+Compare this plot to the linkage mapping plot above. Are the peaks largely similar or different?  Do any peaks cross the alpha = 0.05 threshold?
 
-### Mapping your favorite gene (that is expressed in the liver)
+Next, we will look more closely at the genes under the peak on distal Chr 4.
 
-Next, you will map a gene of your choosing. Pick a gene and see if it is in the data set.
-
-
-```{r eval=FALSE}
-row = which(annotations.rna.192$Gene == "MyFavoriteGene")
-ensid = annotations.rna.192$EnsemblID[row]
-annotations.rna.192[row,]
-pheno.col = which(colnames(expr.rna.192) == ensid)
+```{r assoc_map,warning=FALSE}
+assoc = assoc.map(pheno = pheno, pheno.col = "Pct.Time.Center.Slope", 
+        probs = probs, K = K[[4]], addcovar = covar, snps = snps, chr = 4,
+        start = 149, end = 152, output = "p-value")
+high.snps = assoc.plot(assoc, thr = thr[1], show.sdps = TRUE)
 ```
 
-If you got a row containing annotation data, then your gene is in the DO liver expression data.
+There are three panels in the association mapping plot. The top panel shows the minor allele frequency for SNPs colored in red, the middle panel shows the LOD scores for all SNPs, and the bottom panel shows the genes in the interval. We colored SNPs with LOD scores over 5.5 in red and then plotted the minor allele for each of these SNPs. A LOD of 5.5 is arbitrary in this case, but it allows us to highlight the most significant SNPs. Which strain contributes the minor allele for the high LOD SNPs? How do these strains relate to the ones in the founder allele effects plot above?
 
-Try to modify the QTL mapping code from *Lrtm1* to perform the following tasks:
+### Searching for non-synonymous SNPs in the QTL region.
 
-1. Map the gene.
-2. Create a QTL plot. 
+A SNP can cause at least three effects that might affect a phenotype:
+
+1. It may change an amino acid in a coding transcript,
+2. it may change splicing of a transcript,
+3. it may change the expression level of a transript.
+
+There are certainly other consequences, such as effects on non-coding RNAs, but we will focus on the three effects above.
+
+In order to search for non-synonymous SNPs, we need to get more information about the SNPs with the highest -log10(p-value) in the association mapping plot. These were stored in `high.snps` above. We will get the range of SNPs and will query the Sanger Mouse Genomes VCF file to get the alleles and the SNP consequences.
+
+```{r get_sanger,warnings=FALSE}
+snp.range = range(high.snps[,2]) * 1e6
+snp.file = "ftp://ftp.jax.org/SNPtools/variants/mgp.v5.merged.snps_all.dbSNP142.vcf.gz"
+header = scanVcfHeader(file = snp.file)
+samples = samples(header)[c(5,2,26,28,16,30,35)]
+gr = GRanges(seqnames = 4, ranges = IRanges(start = snp.range[1],
+             end = snp.range[2]))
+param = ScanVcfParam(geno = "GT", samples = samples, which = gr)
+vcf = readVcf(file = snp.file, genome = "mm10", param = param)
+```
+
+The call to `read.Vcf()` returned and object of class `CollapsedVCF`.  This contains all SNPs in the QTL interval, but we are only interested in the ones that had high -log10(p-values).  We next intersect our SNPs with the VCF SNPs to retain only the ones that we want.
+
+```{r intersect-snps,warnings=FALSE}
+high.snps.gr = GRanges(seqnames = high.snps[,1], ranges = IRanges(start = high.snps[,2] * 1e6, width = 1))
+wh = which(!start(high.snps.gr) %in% start(vcf))
+start(high.snps.gr)[wh] = start(high.snps.gr)[wh] + 1
+all(start(high.snps.gr) %in% start(vcf))
+vcf = vcf[start(vcf) %in% start(high.snps.gr)]
+```
+
+We have `r nrow(vcf)` SNPs for which PWK/PhJ has the minor allele and we want to subset them to keep only those with non-synonymous or splice site SNPs. We will search thw SNP consequences for "missense", "nonsense", "stop" or "splice".
+
+```{r conseq,warning=FALSE}
+csq = info(vcf)$CSQ
+nonsyn = lapply(csq, function(z) { grep("missense|nonsense|stop|splice", z) })
+vcf = vcf[sapply(nonsyn, length) > 0]
+```
+
+This returns `r nrow(vcf)` SNPs with non-synonymous or splice SNPs.  Next, we need to get the names of the genes. To do this, we will access mouse gene annotation from 'AnnotationHub', a public repository of annotation data.  We want the Ensembl mouse GTF file, so we will query the `AnnotationHub` for these terms.
+
+```{r hub_query,warning=FALSE}
+hub = query(AnnotationHub(), c("ensembl", "gtf", "mus musculus"))
+hub
+```
+
+This returned a list of many Ensembl GTF files.  We will use Ensembl, version 80.
+
+```{r ensembl_gtf,message=FALSE,warning=FALSE}
+ensembl = hub[[names(hub)[grep("80", hub$title)]]]
+```
+
+The `ensembl` object is a large GenomicRanges object with information about all of the transripts in the Ensembl version 80 mouse genome build. We can query this object to get the gene names.
+
+Next, we get the Ensembl gene IDs for the SNPs.
+
+```{r gene_symbols,warning=FALSE}
+csq = as.list(info(vcf)$CSQ)
+genes = rep(NA, length(csq))
+for(i in 1:length(csq)) {
+  tmp = csq[[i]][grep("missense|nonsense|stop|splice", csq[[i]])]
+  tmp = strsplit(tmp, split = "\\|")
+  genes[i] = unique(sapply(tmp, "[", 2))
+} # for(i)
+```
+
+Then, query the Ensembl object for the gene names.
+
+```{r query_ensembl,warning=FALSE}
+tmp = ensembl[ensembl$type == "gene" & seqnames(ensembl) == 4]
+misense.genes = cbind(genes, tmp$gene_name[match(genes, tmp$gene_id)])
+rm(tmp)
+misense.genes[!duplicated(misense.genes[,1]),]
+```
+
+We now have a list of the genes that contain non-synonymous or spice site SNPs. These would be good candidates for further experimental folow-up.
+
+
+
+### Searching for genes with expression variation that influences the trait.
+
+The other effect that SNPs can have is to alter constitutive transcript expression by altering regulatory regions of the genome.
+
+We will now bring in the summarized hippocampus RNAseq data and use it to prioritize genes in the Chr 4 QTL region.  We previously performed QTL mapping on all of the genes in the RNASeq file. This simply involves calling `scanone()` on each transcript.  We then harvested the maximum QTL location for each gene and stored these value in `expr_sig_qtl.rds`.  Load this file in now.
+
+```{r load_expr_qtl,warning=FALSE}
+sig.qtl = readRDS("../data/expr_sig_qtl.rds")
+```
+
+Look at the size of `sig.qtl` in the **Environment** panel to the right.  It contains `r nrow(sig.qtl)` rows, one for each gene that was expressed in the brain.  Type `View(sig.qtl)` into the **Console** and look at the first few lines. Each gene has a name, chromosome and location and the chromsome, position and LOD socre for the associated QTL.
+
+We will get all of the genes that are located within +/- 1 Mb of the maximum QTL range on Chr 4 and that also have an eQTL peak on Chr 4.
+
+```{r get_cic_eqtl,warning=FALSE}
+high.snps.range = c(min(start(high.snps.gr)), max(start(high.snps.gr))) * 1e-6
+chr4.sig.qtl = sig.qtl[sig.qtl$chr == 4 & 
+                      sig.qtl$qtl.chr == 4 & 
+                      (abs(sig.qtl$start - high.snps.range[1]) < 1 |                                       abs(sig.qtl$start - high.snps.range[2]) < 1),]
+chr4.sig.qtl = chr4.sig.qtl[chr4.sig.qtl$qtl.lod > 7,]
+```
+
+There are `r nrow(chr4.sig.qtl)` genes with eQTL near the Pct.Time.Center.Slope QTL on Chr 4.
+
+We want to know if the expression of any of these genes in the same set of mice influences the Pct.Time.Center.Slope QTL.  To do this, we will add each gene to the mapping model as a covariate and see if it decreases the -log10(p-value).  The gene, or genes, that cause the largest drop in significance are the best candidate genes.
+
+We will not have time to run all of the genes in this tutorial.  But we will run two in order to understand the process. 
+
+```{r load_expr,warning=FALSE}
+expr = readRDS("../data/ibangs_expr.rds")
+```
+
+There are only 258 samples in the expression data, whereas there are 272 in the full phenotype data set.  We will need to subset the samples to perform the analysis. Then we will get the subset of genes that we will use as covariates.
+
+```{r new_cover,warning=FALSE}
+covar2 = covar[rownames(expr),]
+expr.subset = expr[,rownames(chr4.sig.qtl)]
+```
+
+Next, we will map Pct.Time.Center.Slope in the QTL interval and we will keep the maximum -log10(p-value). 
+
+*DON'T RUN THIS PART!*
+
+```{r mediation_loop,warning=FALSE,eval=FALSE}
+pv.expr = rep(0, ncol(expr.subset))
+names(pv.expr) = colnames(expr.subset)
+for(i in 1:ncol(expr.subset)) {
+  
+  local.covar = cbind(covar2, expr.subset[,i])
+  assoc = assoc.map(pheno = pheno, pheno.col = "Pct.Time.Center.Slope", 
+        probs = probs, K = K[[4]], addcovar = local.covar, snps = snps, chr = 4,
+        start = 149, end = 150, output = "p-value")
+  pv.expr[i] = -log10(min(assoc[,12]))
+    
+} # for(i)
+```
+
+We will remap two genes as examples of how the process works. First, we will map a gene that has no effect on the Pct.Time.Center.Slope QTL.  The -log10(p-value) is about the same as in the association mapping plot above.
+
+```{r map_neutral_gene,warning=FALSE}
+i = 1
+local.covar = cbind(covar2, expr.subset[,i])
+assoc1 = assoc.map(pheno = pheno, pheno.col = "Pct.Time.Center.Slope", 
+        probs = probs, K = K[[4]], addcovar = local.covar, snps = snps, chr = 4,
+        start = 149, end = 150, output = "p-value")
+tmp = assoc.plot(assoc1)
+```
+
+Next, we will plot a gene, Vamp3, that reduces the -log10(p-value) somewhat.  If the gene was truly causal, it would lower the -log10(p-value) by a greater amount.
+
+```{r map_causal_gene,warning=FALSE}
+i = 8
+local.covar = cbind(covar2, expr.subset[,i])
+assoc2 = assoc.map(pheno = pheno, pheno.col = "Pct.Time.Center.Slope", 
+        probs = probs, K = K[[4]], addcovar = local.covar, snps = snps, chr = 4,
+        start = 149, end = 150, output = "p-value")
+tmp = assoc.plot(assoc2)
+```
+
+
+Go to the [Brain eQTL viewer](http://mr3.jax.org:3000/) and look up the gene 'Vamp3'.  What does the founder allele effects plot look like on Chr 4?  How does it compare to the founder allele effects plot for Pct.Time.Center.Slope?
+
+
+### Mapping another trait on your own.
+
+Try to modify the QTL mapping code above to perform the following tasks:
+
+1. Map another trait in 'pheno'.
+2. Create a QTL plot.
 3. Create a QTL plot with the significance threshold.
 4. Create a founder effects plot on the chromosome with the highest LOD score.
-5. Perform association mapping near the highest QTL peak .
-6. Create an association mapping plot with your favorite gene highlighed (if it is in the QTL interval).
+5. Perform association mapping near the highest QTL peak.
+6. Create an association mapping plot.
 
-### eQTL Analysis in Bulk
-
-Expression data often contains thousands of transcripts. In these examples using 192 samples, each call to `scanone()` takes about 1 minute.  There are `r ncol(expr.rna.192)` genes in this data set. `r ncol(expr.rna.192)` x 1 minute / 60 minutes / hour = 418.5 hours = 17.4 days.  This would be time consuming on a single computer. However, many institutions have computing clusters and cloud based computing services allow you to run many jobs at the same time. 
-
-In order to make the task manageable, we transform each expression trait using a rankZ (or inverse normal) transformation. We then estimate significance thresholds using permutations of a single rankZ transformed phenotype. Since all expression traits have the same distribution, we can use the same threshold for all genes.
-
-Below, we include code that maps all traits and write the DOQTL objects out to binary Rdata files.
-
-```{r eval=FALSE}
-perms = scanone.perm(pheno = expr.rna.192, pheno.col = 1, probs = probs.192,
-                    addcovar = covar, snps = snps.64K, nperm = 1000)
-
-# Load in DOQTL.
-library(DOQTL)
-
-# Load in the data.
-load("/hpcdata/cgd/DO192_DataforSysGenCourse.Rdata")
-load("/hpcdata/cgd/DO192_DataforSysGenCourse_update.Rdata")
-
-# Create the covariates.
-covar = covariates.rna.192[,c(1,2,5)]
-covar = data.frame(lapply(covar, factor))
-covar = model.matrix(~Sex + Diet, data = covar)[,-1]
-rownames(covar) = rownames(covariates.rna.192)
-colnames(covar)[1] = "Sex"
-
-# Remove the data that we don't need from memory.
-rm(annotations.protein.192, annotations.rna.192, expr.protein.192,
-   expr.rna.192, samples.192, covariates.rna.192, covariates.protein.192)
-
-annotations.rna.new = annotations.rna.new[colnames(expr.rna.192),]
-
-# Set the output directory.
-setwd("/hpcdata/dgatti/ShortCourse/eQTL")
-
-for(i in 1:ncol(expr.rna.192)) {
-
-  start.time = proc.time()[3]
-  qtl = scanone(pheno = expr.rna.192, pheno.col = i,
-        probs = probs.192, K = K.LOCO.192, addcovar = covar, 
-        snps = snps.64K)
-  saveRDS(qtl, file = paste0(colnames(expr.rna.192)[i], "_",
-          annotations.rna.new$Gene[i], "_QTL.rds"))
-
-  print(paste(i, proc.time()[3] - start.time))
-
-} # for(i)
-```
-
-At this point, you will have a directory containing thousands of `*.rds` files. Each file will contain a DOQTL object with the QTL information for one gene. Next, we loop through the files, harvest the maximum autosomal QTL for each gene and will produce a table of results. We will also plot the genome scan and the coefficient plot for the chromosome with the maximum LOD score.
-
-```{r eval=FALSE}
-# Loadin DOQTL.
-library(DOQTL)
-
-# Load in the data.
-load("/hpcdata/cgd/DO192_DataforSysGenCourse.Rdata")
-load("/hpcdata/cgd/DO192_DataforSysGenCourse_update.Rdata")
-
-# Remove the data that we don't need.
-rm(annotations.rna.192, expr.rna.192, annotations.protein.192, expr.protein.192,
-   samples.192, covariates.rna.192, covariates.protein.192)
-
-# Set the output directory.
-setwd("/hpcdata/dgatti/ShortCourse/eQTL")
-
-# Load in the permutations.
-load(file = "eQTL_perms.Rdata")
-thr = quantile(perms, 1.0 - c(0.63, 0.05))
-
-# Get the files.
-files = dir(pattern = "_QTL.rds$")
-
-# Extract the protein IDs.
-gene.ids = strsplit(files, split = "_")
-gene.ids = sapply(gene.ids, "[", 1)
-stopifnot(rownames(annotations.rna.new) == colnames(expr.rna.192))
-
-# Create a QTL results data.frame.
-result = data.frame(Ensembl_ID = annotations.rna.new$EnsemblID,
-               Symbol = annotations.rna.new$Gene,
-               Gene_Chr = annotations.rna.new$Chr,
-               Gene_Midpoint = 0.5 * (annotations.rna.new$End.Mbp + annotations.rna.new$Start.Mbp),
-               QTL_Chr = rep("", nrow(annotations.rna.new)),
-               QTL_Pos = rep(0, nrow(annotations.rna.new)),
-               QTL_LOD = rep(0, nrow(annotations.rna.new)),
-               p.gw = rep(0, nrow(annotations.rna.new)),
-               stringsAsFactors = FALSE)
-
-# Make sure that the order of the proteins in the results file
-# matches the order of the proteins in the files.
-result = result[match(gene.ids, result$Ensembl_ID),]
-stopifnot(gene.ids == result$Ensembl_ID)
-
-# Extract the LOD and coefficients for each protein.
-for(i in 1:length(files)) {
-
-  print(paste(i, "of", length(files)))
-  qtl = readRDS(files[i])
-
-  # Get the LOD score and coefficients.
-  lod = c(qtl$lod$A$lod, qtl$lod$X$lod)
-  coef.columns = (ncol(qtl$coef$A) - 7):ncol(qtl$coef$A)
-  coef = rbind(qtl$coef$A[,coef.columns], qtl$coef$X[,coef.columns])
-
-  # Make a QTL plot.
-  outfile = paste0(protein.ids[i], "_", annotations.protein.192$Associated.Gene.Name[i],
-            "_QTL.png")
-  title = paste(protein.ids[i], annotations.protein.192$Associated.Gene.Name[i])
-  png(outfile, width = 1000, height = 800, res = 128)
-  plot(qtl, sig.thr = thr, sig.color = c("orange", "red"), 
-       main = title)
-  dev.off()
-
-  # Harvest the maximum autosomal peak.
-  max.qtl = qtl$lod$A[which.max(qtl$lod$A[,7]),]
-
-  result$QTL_Chr[i] = max.qtl$Chr[1]
-  result$QTL_Pos[i] = max.qtl$Mb_NCBI38[1]
-  result$QTL_LOD[i] = max.qtl$lod[1]
-  result$p.gw[i]    = mean(perms >= max.qtl[1,7])
-
-  # Create a coefficient plot on the chromosome with the maximum QTL.
-  max.chr = max.qtl[1,2]
-  outfile = sub("QTL", paste0("chr", max.chr), outfile)
-  png(outfile, width = 1000, height = 800, res = 128)
-  coefplot(qtl, chr = max.chr, main = title)
-  dev.off()
-
-} # for(i)
-
-write.csv(result, file = "eQTL_summary.csv", quote = FALSE, row.names = FALSE)
-```
-
-We then harvest the LOD and coefficient data and place it in a more compact form. We can extract the LOD score from each QTL object and place them all in a single matrix. We  also extract the founder effect coefficients and place them in a large three dimensional array. We save all of this data to an [HDF5](https://www.bioconductor.org/packages/release/bioc/html/rhdf5.html) file. HDF5 is a compressed data format that allows you to group data in directory-like structures.
-
-```{r eval=FALSE}
-# Load in libraries.
-# Perform the pQTL mapping.
-library(DOQTL)
-library(rhdf5)
-
-# Load in the data.
-load("/hpcdata/cgd/DO192_DataforSysGenCourse.Rdata")
-load("/hpcdata/cgd/DO192_DataforSysGenCourse_update.Rdata")
-
-# Remove the data that we don't need.
-rm(annotations.rna.192, expr.rna.192, annotations.protein.192, expr.protein.192,
-   samples.192, covariates.rna.192, covariates.protein.192)
-
-# Set the output directory.
-setwd("/hpcdata/dgatti/ShortCourse/eQTL")
-
-# Get the files.
-files = dir(pattern = "_QTL.rds$")
-
-# Extract the gene IDs.
-gene.ids = strsplit(files, split = "_")
-gene.ids = sapply(gene.ids, "[", 1)
-stopifnot(rownames(annotations.rna.new) == colnames(expr.rna.192))
-
-# We will use this to split the data up by chormosome.
-chrlist = factor(snps.64K$Chr, levels = c(1:19, "X"))
-
-# Pre-calulate the breaks points on each chromosome.
-out.snps = split(snps.64K, chrlist)
-brks = vector("list", length(levels(chrlist)))
-names(brks) = levels(chrlist)
-brklen = vector("list", length(levels(chrlist)))
-names(brklen) = levels(chrlist)
-
-for(c in 1:length(out.snps)) {
-
-  pos = out.snps[[c]]$Mb_NCBI38
-  brks[[c]] = cut(out.snps[[c]]$Mb_NCBI38, round(nrow(out.snps[[c]]) / 10))
-  brks[[c]] = factor(as.numeric(brks[[c]]))
-  keep = table(brks[[c]])
-  brklen[[c]] = c(0, cumsum(keep)[-length(keep)])
-  keep = round(keep / 2) + cumsum(c(0, keep[-length(keep)]))
-  out.snps[[c]] = out.snps[[c]][keep,]
-
-} # for(c)
-
-# Create a LOD matrix.
-lod = matrix(0, nrow = sum(sapply(out.snps, nrow)), 
-      ncol = length(files), dimnames = list(
-      unlist(sapply(out.snps, rownames)), gene.ids))
-coef = array(0, c(nrow(lod), 8, ncol(lod)),
-       dimnames = list(rownames(lod), LETTERS[1:8], colnames(lod)))
-
-# Extract the LOD and coefficients for each gene.
-for(i in 1:length(files)) {
-
-  print(paste(i, "of", length(files)))
-  qtl = readRDS(files[i])
-
-  # Get the LOD score and coefficients and split them up by chromosome.
-  local.lod = c(qtl$lod$A$lod, qtl$lod$X$lod)
-  local.lod = split(local.lod, chrlist)
-  coef.columns = (ncol(qtl$coef$A) - 7):ncol(qtl$coef$A)
-  local.coef = data.frame(rbind(qtl$coef$A[,coef.columns], qtl$coef$X[,coef.columns]))
-  local.coef = split(local.coef, chrlist)
-
-  # Loop through each chromosome.
-  for(c in 1:length(local.lod)) {
-
-    # Subset the LOD scores.
-    spl = split(local.lod[[c]], brks[[c]])
-    max.idx = sapply(spl, which.max) + brklen[[c]]
-    local.lod[[c]] = local.lod[[c]][max.idx]
-
-    # Subset the coefficients.
-    local.coef[[c]] = local.coef[[c]][max.idx,]
-
-  } # for(c)
-
-  # Combine the LOD and coef results.
-  local.lod  = unsplit(local.lod,  rep(1:length(local.lod),
-               sapply(local.lod, length)))
-  local.coef = unsplit(local.coef, rep(1:length(local.coef),
-               sapply(local.coef, nrow)))
-
-  # Center the coefficients.
-  colnames(local.coef)[1] = "A"
-  local.coef = as.matrix(local.coef)
-  local.coef[,1] = 0
-  local.coef = local.coef - rowMeans(local.coef)
-
-  # Add the LOD and coef to the large arrays.
-  lod[,i]   = local.lod
-  coef[,,i] = local.coef
-
-} # for(i)
-
-out.snps = unsplit(out.snps, rep(1:length(out.snps), sapply(out.snps, nrow)))
-
-# Keep only unique genes.
-lod  = lod[,!duplicated(colnames(lod))]
-coef = coef[,,!duplicated(dimnames(coef)[[3]])]
-
-# Write out the data as an HDF5 file.
-h5filename = "eQTL_for_viewer.h5"
-chunk = 500
-h5createFile(file = h5filename)
-h5createGroup(file = h5filename, group = "lod")
-h5createDataset(file = h5filename, dataset = "/lod/lod", dim = dim(lod),
-                chunk = c(nrow(lod), chunk))
-h5write(obj = lod,  file = h5filename, name = "/lod/lod")
-h5write(obj = out.snps[,1:3], file = h5filename, name = "/lod/markers")
-h5write(obj = colnames(lod), file = h5filename, name = "/lod/genes")
-h5createGroup(file = h5filename, group = "coef")
-h5createDataset(file = h5filename, dataset = "/coef/coef", dim = dim(coef),
-                chunk = c(nrow(lod), 8, chunk))
-h5write(obj = coef, file = h5filename, name = "/coef/coef")
-h5write(obj = colnames(coef), file = h5filename, name = "/coef/founders")
-h5write(obj = dimnames(coef)[[3]], file = h5filename, name = "/coef/genes")
-H5close()
-
-h5ls(h5filename)
-```
-
-Here is a listing of what is in the HDF5 file.
-
-```{r eval = FALSE, warnings=FALSE}
-library(rhdf5)
-h5ls("eQTL_for_viewer.h5")
-```
-
-We take the output of these two scripts, `eQTL_summary.csv` and `eQTL_for_viewer.h5`, and place them in a directory. Then we can launch an [eQTL viewer](http://cgd.jax.org/ShortCourse2015/eqtl).
 
