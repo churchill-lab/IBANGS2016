@@ -152,8 +152,8 @@ expr.subset = expr[,rownames(chr4.sig.qtl)]
 i = 1
 local.covar = cbind(covar2, expr.subset[,i])
 assoc1 = assoc.map(pheno = pheno, pheno.col = "Pct.Time.Center.Slope", 
-         probs = probs, K = K[[4]], addcovar = local.covar, snps = snps, chr = 4,
-         start = 149, end = 150, output = "p-value")
+        probs = probs, K = K[[4]], addcovar = local.covar, snps = snps, chr = 4,
+        start = 149, end = 150, output = "p-value")
 tmp = assoc.plot(assoc1)
 
 ## ----map_causal_gene,warning=FALSE---------------------------------------
