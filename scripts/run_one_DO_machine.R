@@ -7,7 +7,7 @@ d <- docklet_create(size = getOption("do_size", "8gb"),
 
 # pull images
 d %>% docklet_pull("rocker/hadleyverse")
-d %>% docklet_pull("churchill/doqtl")
+d %>% docklet_pull("churchill/ibangs2016")
 d %>% docklet_images()
 
 # download files to /data folder, takes ~30mins
@@ -18,7 +18,8 @@ cmd <- paste0("ssh ", analogsea:::ssh_options(), " ", "root", "@", analogsea:::d
 analogsea:::do_system(d, cmd, verbose = TRUE)
 
 # start the containers
-d %>% docklet_run("-d", " -v /ibangs/data:/ibangs/data", " -v /ibangs/tutorial:/ibangs/tutorial", " -p 8787:8787", " -e USER=rstudio", " -e PASSWORD=ibangs ", "-name myrstudio ", "churchill/doqtl")
+d %>% docklet_run("-d", " -v /ibangs/data:/ibangs/data", " -v /ibangs/tutorial:/ibangs/tutorial", " -p 8787:8787", 
+                  " -e USER=rstudio", " -e PASSWORD=ibangs ", "-name myrstudio ", "churchill/ibangs2016")
 
 # add symbolic links
 lines2 <- "docker exec myrstudio ln -s /ibangs/data /home/rstudio/data
