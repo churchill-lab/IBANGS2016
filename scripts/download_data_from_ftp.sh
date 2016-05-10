@@ -19,6 +19,7 @@ wget --directory-prefix=/ibangs/data ftp://ftp.jax.org/dgatti/IBANGS2016/data/ph
 wget --directory-prefix=/ibangs/tutorial ftp://ftp.jax.org/dgatti/IBANGS2016/markdown/DO.impute.founders.sm.png
 wget --directory-prefix=/ibangs/tutorial ftp://ftp.jax.org/dgatti/IBANGS2016/markdown/DOQTL_workshop_IBANGS2016.Rmd
 wget --directory-prefix=/ibangs/tutorial ftp://ftp.jax.org/dgatti/IBANGS2016/markdown/DOQTL_workshop_IBANGS2016.html
+wget --directory-prefix=/ibangs/tutorial ftp://ftp.jax.org/dgatti/IBANGS2016/markdown/DOQTL_workshop_IBANGS2016.R
 
 # set privilages - everybody can do everything
 chmod --recursive 777 /ibangs
