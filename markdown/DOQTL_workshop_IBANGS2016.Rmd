@@ -47,7 +47,7 @@ We will be working with data that is stored locally on your cloud machine. For t
 All of the data for this tutorial is stored in a compressed R binary files that end with `rds`. You load an RDS file in using the `readRDS()` command. We will first load in the phenotypes.
 
 ```{r load_pheno,warning=FALSE}
-pheno = readRDS("../data/ibangs_phenotypes.rds")
+pheno = readRDS("data/ibangs_phenotypes.rds")
 ```
 
 This command loaded an R object called 'pheno' into the environment. Look at the **Environment** tab in the upper left panel of your RStudio window to see it.
@@ -69,7 +69,7 @@ The histogram appeared in the *Plots* tab in the lower right panel. The trait is
 Next, let's look at the haplotype probabilities. 
 
 ```{r load_haplo}
-probs = readRDS("../data/ibangs_haploprobs.rds")
+probs = readRDS("data/ibangs_haploprobs.rds")
 ```
 
 `probs` is a three dimensional numeric array. The `r nrow(probs)` samples are in rows, the `r ncol(probs)` DO founders are in columns and the `r dim(probs)[3]` markers are in slices. Again, as with the expression data, you are required to have sample IDs in rownames.
@@ -141,7 +141,7 @@ plot(qtl, main = "Pct.Time.Center.Slope")
 There are some peaks that look large, but we need some way to decide which ones are significant. To do this, we will load in previously computed permutations. We ran 1000 permutations and retained the maximum LOD score from each one.
 
 ```{r linkage_perms,warning=FALSE}
-link_perms = readRDS("../data/linkage_perms.rds")
+link_perms = readRDS("data/linkage_perms.rds")
 thr = get.sig.thr(link_perms, alpha = c(0.05, 0.63))
 ```
 
@@ -180,13 +180,13 @@ Although we genotyped the DO mice at 7,654 markers, we now have 40 million SNPs 
 ```{r gwas,warning=FALSE}
 gwas = scanone.assoc(pheno = pheno, pheno.col = "Pct.Time.Center.Slope",
        probs = probs, K = K, addcovar = covar, markers = snps, ncl = 1,
-       sdp.file = "../data/DO_Sanger_SDPs.txt.bgz")
+       sdp.file = "data/DO_Sanger_SDPs.txt.bgz")
 ```
 
 Next, we load in the pre-computed permutations for the GWAS.
 
 ```{r load_gwas_perms,warnings=FALSE}
-assoc_perms = readRDS("../data/assoc_perms.rds")
+assoc_perms = readRDS("data/assoc_perms.rds")
 thr = get.sig.thr(-log10(assoc_perms))
 ```
 
@@ -297,7 +297,7 @@ The other effect that SNPs can have is to alter constitutive transcript expressi
 We will now bring in the summarized hippocampus RNAseq data and use it to prioritize genes in the Chr 4 QTL region.  We previously performed QTL mapping on all of the genes in the RNASeq file. This simply involves calling `scanone()` on each transcript.  We then harvested the maximum QTL location for each gene and stored these value in `expr_sig_qtl.rds`.  Load this file in now.
 
 ```{r load_expr_qtl,warning=FALSE}
-sig.qtl = readRDS("../data/expr_sig_qtl.rds")
+sig.qtl = readRDS("data/expr_sig_qtl.rds")
 ```
 
 Look at the size of `sig.qtl` in the **Environment** panel to the right.  It contains `r nrow(sig.qtl)` rows, one for each gene that was expressed in the brain.  Type `View(sig.qtl)` into the **Console** and look at the first few lines. Each gene has a name, chromosome and location and the chromsome, position and LOD socre for the associated QTL.
@@ -319,7 +319,7 @@ We want to know if the expression of any of these genes in the same set of mice 
 We will not have time to run all of the genes in this tutorial.  But we will run two in order to understand the process. 
 
 ```{r load_expr,warning=FALSE}
-expr = readRDS("../data/ibangs_expr.rds")
+expr = readRDS("data/ibangs_expr.rds")
 ```
 
 There are only 258 samples in the expression data, whereas there are 272 in the full phenotype data set.  We will need to subset the samples to perform the analysis. Then we will get the subset of genes that we will use as covariates.
@@ -353,8 +353,8 @@ We will remap two genes as examples of how the process works. First, we will map
 i = 1
 local.covar = cbind(covar2, expr.subset[,i])
 assoc1 = assoc.map(pheno = pheno, pheno.col = "Pct.Time.Center.Slope", 
-        probs = probs, K = K[[4]], addcovar = local.covar, snps = snps, chr = 4,
-        start = 149, end = 150, output = "p-value")
+         probs = probs, K = K[[4]], addcovar = local.covar, snps = snps, chr = 4,
+         start = 149, end = 150, output = "p-value")
 tmp = assoc.plot(assoc1)
 ```
 
