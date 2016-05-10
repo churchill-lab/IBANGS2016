@@ -20,9 +20,5 @@ wget --directory-prefix=/ibangs/tutorial ftp://ftp.jax.org/dgatti/IBANGS2016/mar
 wget --directory-prefix=/ibangs/tutorial ftp://ftp.jax.org/dgatti/IBANGS2016/markdown/DOQTL_workshop_IBANGS2016.Rmd
 wget --directory-prefix=/ibangs/tutorial ftp://ftp.jax.org/dgatti/IBANGS2016/markdown/DOQTL_workshop_IBANGS2016.html
 
-# Symbolic link from /data to home/data
-ln -s /ibangs/data ~/data
-ln -s /ibangs/tutorial ~/tutorial
-
 # set privilages - everybody can do everything
-chmod --recursive 777 /data
+chmod --recursive 777 /ibangs
