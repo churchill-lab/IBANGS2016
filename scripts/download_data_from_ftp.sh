@@ -16,9 +16,9 @@ wget --directory-prefix=/ibangs/data ftp://ftp.jax.org/dgatti/IBANGS2016/data/li
 wget --directory-prefix=/ibangs/data ftp://ftp.jax.org/dgatti/IBANGS2016/data/phenotypes.rds
 
 # Copy the tutorial directory.
-wget --directory-prefix=/data/tutorial ftp://ftp.jax.org/dgatti/IBANGS2016/markdown/DO.impute.founders.sm.png
-wget --directory-prefix=/data/tutorial ftp://ftp.jax.org/dgatti/IBANGS2016/markdown/DOQTL_workshop_IBANGS2016.Rmd
-wget --directory-prefix=/data/tutorial ftp://ftp.jax.org/dgatti/IBANGS2016/markdown/DOQTL_workshop_IBANGS2016.html
+wget --directory-prefix=/ibangs/tutorial ftp://ftp.jax.org/dgatti/IBANGS2016/markdown/DO.impute.founders.sm.png
+wget --directory-prefix=/ibangs/tutorial ftp://ftp.jax.org/dgatti/IBANGS2016/markdown/DOQTL_workshop_IBANGS2016.Rmd
+wget --directory-prefix=/ibangs/tutorial ftp://ftp.jax.org/dgatti/IBANGS2016/markdown/DOQTL_workshop_IBANGS2016.html
 
 # Symbolic link from /data to home/data
 ln -s /ibangs/data ~/data
