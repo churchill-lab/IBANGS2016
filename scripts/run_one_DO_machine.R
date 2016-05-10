@@ -18,7 +18,7 @@ cmd <- paste0("ssh ", analogsea:::ssh_options(), " ", "root", "@", analogsea:::d
 analogsea:::do_system(d, cmd, verbose = TRUE)
 
 # start the containers
-d %>% docklet_run("-d", " -v /ibangs/data:/data", " -v /ibangs/tutorial:/tutorial", " -p 8787:8787", " -e USER=rstudio", " -e PASSWORD=ibangs ", "churchill/doqtl")
+d %>% docklet_run("-d", " -v /ibangs/data:/ibangs/data", " -v /ibangs/tutorial:/ibangs/tutorial", " -p 8787:8787", " -e USER=rstudio", " -e PASSWORD=ibangs ", "churchill/doqtl")
 
 # kill droplet
 # droplet_delete(d)
