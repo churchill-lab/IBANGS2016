@@ -370,7 +370,7 @@ tmp = assoc.plot(assoc2)
 ```
 
 
-Go to the [Brain eQTL viewer](http://mr3.jax.org:3000/) and look up the gene 'Vamp3'.  What does the founder allele effects plot look like on Chr 4?  How does it compare to the founder allele effects plot for Pct.Time.Center.Slope?
+Go to the [Hippocampus eQTL viewer](http://cgd.jax.org/IBANGS2016) and look up the gene 'Vamp3'.  What does the founder allele effects plot look like on Chr 4?  How does it compare to the founder allele effects plot for Pct.Time.Center.Slope?
 
 
 ### Mapping another trait on your own.
