@@ -85,7 +85,7 @@ library(mailR)
 
 for (i in 1:N) {
   email_body <- paste0("Dear ",participants$Name[i],",\n\n",
-                       "During the workshop, you will need an access to RStudio Server",
+                       "During the workshop, you will need an access to RStudio Server ",
                        "running on your personal Digital Ocean virtual machine. You can access the machine ",
                        "in your web browser:\n\n",
                        participants$link_RStudio[i]," (user:rstudio, password:ibangs)\n\n",
@@ -96,7 +96,7 @@ for (i in 1:N) {
   send.mail(from = "REPLACE THIS BY YOUR_GMAIL@gmail.com",
             to = participants$Email[i],
             replyTo = "REPLACE THIS BY YOUR_EMAIL",
-            subject = "Short Course On The Genetics Of Addiction - Digital Ocean Machine Access",
+            subject = "IBANGS - DO Machine Access",
             body = email_body,
             smtp = list(host.name = "smtp.gmail.com", port = 465, 
                         user.name = "REPLACE THIS BY YOUR_GMAIL@gmail.com", 
