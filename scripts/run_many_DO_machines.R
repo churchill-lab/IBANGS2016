@@ -88,7 +88,7 @@ for (i in 1:N) {
                        "During the workshop, you will need an access to RStudio Server",
                        "running on your personal Digital Ocean virtual machine. You can access the machine ",
                        "in your web browser:\n\n",
-                       participants$link_RStudio[i]," (RStudio, user:rstudio, password:sysgen)\n\n",
+                       participants$link_RStudio[i]," (user:rstudio, password:ibangs)\n\n",
                        "After the workshop you can run this docker image either on your personal machine or host it ",
                        "on Digital Ocean (as we did). Further instructions can be found on https://github.com/churchill-lab/IBANGS2016 or https://github.com/churchill-lab/sysgen2015.\n\n",
                        "Best regards,\n\n","Petr Simecek")
